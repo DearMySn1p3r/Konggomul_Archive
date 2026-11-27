@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#FBF8F2">
 <title>Konggomul. Archive</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap">
 <style>
@@ -216,6 +219,28 @@ button.tag:hover{filter:brightness(.97)}
 .small-box .row{margin-top:16px;justify-content:flex-end}
 .back{border:none;background:none;color:var(--faint);font-size:12.5px;padding:0;margin:0 0 6px 15px;display:inline-flex;gap:4px;align-items:center}
 .back:hover{color:var(--ink)}
+
+/* 항목 (외형 · 의상 · 장식 …) */
+.pp-list{display:flex;flex-direction:column;gap:14px}
+.pp{display:flex;flex-direction:column;gap:6px}
+.pp-head{display:flex;align-items:center;gap:6px}
+.pp-name{flex:1;min-width:0;border:none;outline:none;background:transparent;font-size:11.5px;font-weight:600;color:var(--muted);padding:4px 6px;margin-left:-4px;border-radius:8px}
+.pp-name:hover{background:#FAF6EF}
+.pp-name:focus{background:#FAF6EF;color:var(--ink)}
+.pp-name::placeholder{color:var(--faint)}
+.pp-x{width:28px;height:28px;border:none;background:none;border-radius:8px;color:var(--faint);font-size:12px;padding:0;flex:none}
+.pp-x:hover{background:#FAF6EF;color:#B04A3A}
+.pp-add{align-self:flex-start;border:1px dashed var(--line);background:none;border-radius:999px;height:32px;padding:0 14px;font-size:12.5px;color:var(--muted)}
+.pp-add:hover{border-color:var(--pk-mid);color:var(--pk-strong)}
+textarea.auto{resize:none;overflow:hidden;min-height:86px}
+/* 순서 바꾸기 */
+.card2.reo{cursor:default;position:relative}
+.card2.reo:hover{transform:none;box-shadow:none;border-color:var(--line)}
+.mv{position:absolute;left:8px;right:8px;top:8px;display:flex;justify-content:space-between;padding:8px}
+.mv button{width:34px;height:34px;border-radius:50%;border:none;background:rgba(255,255,255,.95);color:var(--ink);font-size:16px;box-shadow:0 2px 8px rgba(42,37,32,.15)}
+.mv button:disabled{opacity:.35;cursor:default}
+.reo-bar{display:flex;align-items:center;gap:10px;background:var(--pk-soft);color:var(--pk-strong);border-radius:14px;padding:10px 12px 10px 16px;margin:-4px 0 16px;font-size:13px;font-weight:600}
+.reo-bar .grow{flex:1}
 </style>
 </head>
 <body>
@@ -289,6 +314,7 @@ button.tag:hover{filter:brightness(.97)}
         <div class="page-head" style="margin-top:0">
           <div><h1 class="h1" id="p-title"></h1><p class="sub" id="p-count"></p></div>
           <div class="toolbar">
+            <button class="btn" id="reorder">순서 바꾸기</button>
             <button class="btn" id="rename-menu">이름 바꾸기</button>
             <button class="btn" id="del-menu" hidden>메뉴 삭제</button>
             <button class="btn btn-pk" data-new>+ 새 페르소나</button>
@@ -296,8 +322,9 @@ button.tag:hover{filter:brightness(.97)}
         </div>
         <div class="filters">
           <div class="chips" id="chips" aria-label="태그"></div>
-          <select id="sort" class="field sel" aria-label="정렬"><option value="new">최신순</option><option value="old">과거순</option><option value="az">이름 ▲</option></select>
+          <select id="sort" class="field sel" aria-label="정렬"><option value="custom">직접 정한 순서</option><option value="new">최신순</option><option value="old">과거순</option><option value="az">이름 ▲</option></select>
         </div>
+        <div class="reo-bar" id="reo-bar" hidden><span>‹ › 를 눌러 순서를 바꿔요. 바꾼 순서는 모두에게 똑같이 보여요.</span><span class="grow"></span><button class="btn btn-sm btn-ink" id="reorder-done">완료</button></div>
         <div class="grid" id="grid"></div>
       </section>
     </main>
@@ -333,12 +360,21 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp
 const IMG_OK = /^data:image\/(png|jpe?g|webp);base64,[A-Za-z0-9+/=]+$/;
 const safeImg = v => (typeof v === 'string' && v.length < 300000 && IMG_OK.test(v)) ? v : '';
 const ini = s => (String(s || '').trim()[0] || '?').toUpperCase();
-const TEXT = ['name', 'summary', 'age', 'prompt', 'looks', 'personality', 'background'];
+const TEXT = ['name', 'summary', 'age', 'prompt'];
+const DEFAULT_PARTS = ['외형', '의상', '장식'];
+/* 항목 목록 — 예전 글(외형·성격·배경 칸)도 그대로 읽는다 */
+function partsOf(p){
+  if (p && Array.isArray(p.parts)) return p.parts.filter(x => x && typeof x === 'object').map(x => ({ name: String(x.name || ''), text: String(x.text || '') }));
+  const old = [['외형', 'looks'], ['성격', 'personality'], ['배경', 'background']].filter(([, k]) => p && p[k]).map(([n, k]) => ({ name: n, text: String(p[k]) }));
+  return old.length ? old : DEFAULT_PARTS.map(n => ({ name: n, text: '' }));
+}
+const ord = p => typeof p.order === 'number' ? p.order : -(p.createdAt || 0);
 const NONE = '_none';
 const tagsOf = p => Array.isArray(p.tags) ? p.tags.filter(t => typeof t === 'string' && t) : [];
 const parseTags = s => [...new Set(String(s || '').split(/[,#\n]/).map(t => t.trim()).filter(Boolean))].slice(0, 12).map(t => t.slice(0, 20));
 
 let db = null, myUid = null, items = [], menus = [], gotP = false, gotM = false;
+let reordering = false;
 let view = 'home', menuId = null, tag = 'all', pickSeed = Math.random(), cur = null, editImg = null, editingMenu = null;
 const loaded = () => gotP && gotM;
 const menuIds = () => new Set(menus.map(m => m.id));
@@ -354,7 +390,7 @@ function needWrite(){ if (!db) { toast('보관함에 연결되지 않았어요. 
 /* 화면 전환: #home · #persona · #m-<메뉴 id> */
 function readHash(){ const h = location.hash.slice(1);
   if (h.startsWith('m-')) { view = 'menu'; menuId = h.slice(2); } else { view = h === 'persona' ? 'persona' : 'home'; menuId = null; } }
-function go(v, id){ const h = v === 'menu' ? 'm-' + id : v;
+function go(v, id){ if (v !== 'menu' || id !== menuId) reordering = false; const h = v === 'menu' ? 'm-' + id : v;
   if (v === 'menu' && id !== menuId) tag = 'all';
   view = v; menuId = v === 'menu' ? id : null;
   if (location.hash.slice(1) !== h) { try { history.pushState(null, '', '#' + h); } catch (e) {} }
@@ -431,13 +467,28 @@ function renderMenu(){
   const keys = Object.keys(tc).sort((a, b) => tc[b] - tc[a] || a.localeCompare(b, 'ko'));
   $('chips').innerHTML = keys.length ? [['all', '전체', inMenu.length], ...keys.map(t => [t, '#' + t, tc[t]])].map(([v, l, n]) => `<button class="fchip ${v === tag ? 'on' : ''}" aria-pressed="${v === tag}" data-tag="${esc(v)}">${esc(l)}<span class="n">${n}</span></button>`).join('') : '';
   if (!loaded()) { $('grid').innerHTML = '<div class="empty">불러오는 중…</div>'; return; }
-  const s = $('sort').value;
+  const s = reordering ? 'custom' : $('sort').value;
+  $('reo-bar').hidden = !reordering; $('reorder').hidden = reordering || inMenu.length < 2; $('sort').disabled = reordering;
   let list = inMenu.filter(p => tag === 'all' || tagsOf(p).includes(tag));
+  if (s === 'custom') list = list.slice().sort((a, b) => ord(a) - ord(b));
   if (s === 'old') list = list.slice().reverse();
   if (s === 'az') list = list.slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ko'));
   const add = `<button class="add-card" data-new><b>+</b>새 페르소나</button>`;
   $('grid').innerHTML = !inMenu.length ? `<button class="add-card" data-new style="grid-column:1/-1;min-height:220px"><b>+</b>이 메뉴의 첫 페르소나를 만들어 보세요</button>`
-    : list.length ? list.map(card).join('') + add : `<div class="empty">이 태그의 페르소나가 없어요.</div>` + add;
+    : !list.length ? `<div class="empty">이 태그의 페르소나가 없어요.</div>` + add
+    : reordering ? list.map((p, i) => reoCard(p, i, list.length)).join('')
+    : list.map(card).join('') + add;
+  curList = list;
+}
+let curList = [];
+function reoCard(p, i, n){ return `<div class="card2 reo">${pic(p)}<div class="mv"><button data-mv="${esc(p.id)}" data-d="-1" ${i === 0 ? 'disabled' : ''} aria-label="${esc(p.name)} 앞으로">‹</button><button data-mv="${esc(p.id)}" data-d="1" ${i === n - 1 ? 'disabled' : ''} aria-label="${esc(p.name)} 뒤로">›</button></div><div class="cap"><span class="nm">${i + 1}. ${esc(p.name) || '이름 없음'}</span><span class="ds">${esc(p.summary || p.age) || '&nbsp;'}</span></div></div>`; }
+async function move(id, d){
+  const i = curList.findIndex(p => p.id === id), j = i + d; if (i < 0 || j < 0 || j >= curList.length) return;
+  if (needWrite()) return;
+  const a = curList[i], b = curList[j]; let oa = ord(a), ob = ord(b); if (oa === ob) ob = oa + d;
+  a.order = ob; b.order = oa; render();   /* 화면은 바로 바꾸고 */
+  try { await db.patch(P_COLL, a.id, { order: ob }); await db.patch(P_COLL, b.id, { order: oa }); }
+  catch (e) { saveErr(e); }
 }
 
 /* 태그로 모아보기: 모든 메뉴에서 찾기 */
@@ -450,7 +501,7 @@ function tagView(t){
 
 /* 페르소나 편집 (Studio. Archive 캐릭터 창과 같은 모양) */
 const byId = id => items.find(p => p.id === id);
-function fullText(p){ return [`[${p.name || '이름 없음'}]${p.age ? ' ' + p.age : ''}`, p.summary, tagsOf(p).length && tagsOf(p).map(t => '#' + t).join(' '), p.prompt && '\n' + p.prompt, p.looks && '\n외형: ' + p.looks, p.personality && '성격: ' + p.personality, p.background && '배경: ' + p.background].filter(Boolean).join('\n'); }
+function fullText(p){ return [`[${p.name || '이름 없음'}]${p.age ? ' ' + p.age : ''}`, p.summary, tagsOf(p).length && tagsOf(p).map(t => '#' + t).join(' '), p.prompt && '\n' + p.prompt, ...partsOf(p).filter(x => x.text.trim()).map(x => '\n' + (x.name || '항목') + ': ' + x.text)].filter(Boolean).join('\n'); }
 function openEdit(p){
   cur = p || null; editImg = p ? safeImg(p.img) || null : null;
   const v = k => esc(p ? p[k] || '' : '');
@@ -469,15 +520,18 @@ function openEdit(p){
     <div><label class="sr" for="f-name">이름</label><input class="title-in" id="f-name" name="name" value="${v('name')}" placeholder="페르소나 이름" maxlength="60">
     <label class="sr" for="f-sum">한 줄 요약</label><input class="sub-in" id="f-sum" name="summary" value="${v('summary')}" placeholder="한 줄 요약" maxlength="140" style="margin-top:2px"></div>
     <div><div class="lbl-row"><label class="lbl" for="f-prompt" style="margin:0 0 0 2px">프롬프트</label><button type="button" class="btn btn-sm btn-soft" id="f-cp">복사</button></div>
-    <textarea class="field soft" id="f-prompt" name="prompt" rows="7" placeholder="이 페르소나의 프롬프트 · 설정문" maxlength="20000">${v('prompt')}</textarea></div>
-    <label><span class="lbl">외형</span><textarea class="field soft" name="looks" rows="3" maxlength="5000">${v('looks')}</textarea></label>
-    <label><span class="lbl">성격</span><textarea class="field soft" name="personality" rows="3" maxlength="5000">${v('personality')}</textarea></label>
-    <label><span class="lbl">배경</span><textarea class="field soft" name="background" rows="4" maxlength="8000">${v('background')}</textarea></label>
+    <textarea class="field soft auto" id="f-prompt" name="prompt" rows="4" placeholder="이 페르소나의 프롬프트 · 설정문" maxlength="20000">${v('prompt')}</textarea></div>
+    <div class="pp-list" id="pp">${partsOf(p).map(partRow).join('')}</div>
+    <button type="button" class="pp-add" id="pp-add">+ 항목 추가</button>
     <div class="sheet-foot">${mine ? '<button type="button" class="del" id="del">삭제</button>' : ''}<span class="grow"></span><button type="button" class="btn" id="f-all">전체 복사</button><button class="btn btn-pk" id="f-save">저장</button></div>
   </div></form>`;
   openModal();
+  requestAnimationFrame(() => document.querySelectorAll('#f textarea.auto').forEach(grow));
   if (!p) setTimeout(() => $('f-name').focus(), 60);
 }
+function partRow(x){ return `<div class="pp"><div class="pp-head"><input class="pp-name" value="${esc(x.name)}" placeholder="항목 이름" maxlength="20" aria-label="항목 이름"><button type="button" class="btn btn-sm btn-soft" data-cpp>복사</button><button type="button" class="pp-x" data-delpp aria-label="이 항목 빼기" title="항목 빼기">✕</button></div><textarea class="field soft auto pp-text" rows="3" maxlength="8000" aria-label="${esc(x.name || '항목')} 내용">${esc(x.text)}</textarea></div>`; }
+function grow(el){ el.style.height = 'auto'; el.style.height = (el.scrollHeight + 2) + 'px'; }
+function readParts(){ return [...document.querySelectorAll('#pp .pp')].map(r => ({ name: r.querySelector('.pp-name').value.trim().slice(0, 20), text: r.querySelector('.pp-text').value.trim().slice(0, 8000) })).filter(x => x.name || x.text).slice(0, 20); }
 function shrink(file){ return new Promise(res => { const r = new FileReader(); r.onload = e => { const im = new Image(); im.onload = () => {
   let w = im.width, h = im.height, max = 640, out = '', q = .82;
   for (let t = 0; t < 6; t++) { const k = Math.min(1, max / w); const c = document.createElement('canvas'); c.width = Math.round(w * k); c.height = Math.round(h * k);
@@ -492,8 +546,9 @@ async function save(form){
   TEXT.forEach(k => d[k] = String(raw[k] || '').trim());
   d.tags = parseTags(raw.tags);
   d.menu = raw.menu === NONE ? '' : String(raw.menu || '');
+  d.parts = readParts();
   if (!d.name && !d.prompt) { toast('이름이나 프롬프트를 적어 주세요.'); return; }
-  const now = Date.now(), body = { ...d, img: editImg || '', uid: cur ? cur.uid || myUid : myUid, updatedAt: now, createdAt: cur ? cur.createdAt || now : now };
+  const now = Date.now(), body = { ...d, img: editImg || '', ...(cur && typeof cur.order === 'number' ? { order: cur.order } : {}), uid: cur ? cur.uid || myUid : myUid, updatedAt: now, createdAt: cur ? cur.createdAt || now : now };
   const btn = $('f-save'); btn.disabled = true; btn.textContent = '저장 중…';
   try { await db.set(P_COLL, cur ? cur.id : null, body); closeModal(); toast('저장했어요. 모두에게 보여요.'); }
   catch (e) { btn.disabled = false; btn.textContent = '저장'; saveErr(e); }
@@ -527,7 +582,7 @@ document.addEventListener('click', async e => {
   const t = e.target.closest('button'); if (!t) return;
   if (t.id === 'menu') return openSide();
   if (t.dataset.go) return go(t.dataset.go);
-  if (t.dataset.menu) return go('menu', t.dataset.menu);
+  if (t.dataset.menu) { reordering = false; return go('menu', t.dataset.menu); }
   if (t.hasAttribute('data-new')) return openEdit(null);
   if (t.dataset.edit) { const p = byId(t.dataset.edit); return p && openEdit(p); }
   if (t.dataset.copy) { const p = byId(t.dataset.copy); return p && copy(p.prompt || ''); }
@@ -539,10 +594,16 @@ document.addEventListener('click', async e => {
   if (t.id === 'rename-menu') { const m = menus.find(x => x.id === menuId); return m && openMenuForm(m); }
   if (t.id === 'mm-no') { $('mm').hidden = true; return; }
   if (t.id === 'del-menu') { const m = menus.find(x => x.id === menuId); if (!m || !(await ask('이 메뉴를 삭제할까요?'))) return;
-    try { await db.del(P_COLL, m.id); go('persona'); toast('메뉴를 삭제했어요.'); } catch (err) { toast('삭제하지 못했어요.'); } return; }
+    try { await db.del(P_COLL, m.id); reordering = false; go('persona'); toast('메뉴를 삭제했어요.'); } catch (err) { toast('삭제하지 못했어요.'); } return; }
   if (t.id === 'shuffle') { pickSeed = (pickSeed + 0.37 + Math.random() * .3) % 1; return render(); }
   if (t.id === 'f-cp') return copy($('f-prompt').value);
-  if (t.id === 'f-all') { const d = Object.fromEntries(new FormData($('f'))); d.tags = parseTags(d.tags); return copy(fullText(d)); }
+  if (t.hasAttribute('data-cpp')) return copy(t.closest('.pp').querySelector('.pp-text').value);
+  if (t.hasAttribute('data-delpp')) { t.closest('.pp').remove(); return; }
+  if (t.id === 'pp-add') { if (document.querySelectorAll('#pp .pp').length >= 20) return toast('항목은 20개까지예요.'); $('pp').insertAdjacentHTML('beforeend', partRow({ name: '', text: '' })); const r = $('pp').lastElementChild; grow(r.querySelector('textarea')); r.querySelector('.pp-name').focus(); return; }
+  if (t.id === 'reorder') { reordering = true; return render(); }
+  if (t.id === 'reorder-done') { reordering = false; $('sort').value = 'custom'; return render(); }
+  if (t.dataset.mv) return move(t.dataset.mv, +t.dataset.d);
+  if (t.id === 'f-all') { const d = Object.fromEntries(new FormData($('f'))); d.tags = parseTags(d.tags); d.parts = readParts(); return copy(fullText(d)); }
   if (t.id === 'f-noimg') { editImg = null; $('f-prev').hidden = true; t.hidden = true; return; }
   if (t.id === 'del' && cur) { const p = cur; if (!(await ask('이 페르소나를 삭제할까요?'))) return;
     try { await db.del(P_COLL, p.id); closeModal(); toast('삭제했어요.'); } catch (err) { toast('삭제하지 못했어요.'); } }
@@ -555,6 +616,7 @@ document.addEventListener('change', async e => {
 document.addEventListener('submit', e => { e.preventDefault(); if (e.target.id === 'f') save(e.target); if (e.target.id === 'mm-f') saveMenu(); });
 document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (!$('ask').hidden) return; if (!$('mm').hidden) $('mm').hidden = true; else if (!$('m').hidden) closeModal(); else closeSide(); });
 $('sort').addEventListener('change', render);
+document.addEventListener('input', e => { if (e.target.matches && e.target.matches('textarea.auto')) grow(e.target); });
 
 readHash(); render();
 
@@ -580,10 +642,19 @@ const P_COLL = 'konggomul_personas';
     S = SS; const app = A.initializeApp(firebaseConfig), auth = U.getAuth(app); fs = S.getFirestore(app);
     db = {
       set: (c, id, body) => id ? S.setDoc(S.doc(fs, c, id), body).then(() => ({ id })) : S.addDoc(S.collection(fs, c), body),
+      patch: (c, id, part) => S.updateDoc(S.doc(fs, c, id), part),
       del: (c, id) => S.deleteDoc(S.doc(fs, c, id))
     };
     U.onAuthStateChanged(auth, u => { myUid = u ? u.uid : null; render(); });
-    U.signInAnonymously(auth).catch(e => { console.warn(e); authErr = true; setState('글쓰기를 켤 수 없어요. Firebase 콘솔에서 익명 로그인을 켜고, 이 사이트 주소를 승인된 도메인에 넣어 주세요. (읽기는 돼요)'); });
+    U.signInAnonymously(auth).catch(e => { console.warn(e); authErr = true;
+      const c = (e && e.code) || '';
+      const why = /operation-not-allowed|admin-restricted/.test(c) ? 'Authentication → 로그인 방법에서 ‘익명’이 사용 설정돼 있는지 확인해 주세요.'
+        : /configuration-not-found/.test(c) ? 'Authentication 화면에서 ‘시작하기’를 한 번 누른 뒤 ‘익명’을 켜 주세요.'
+        : /api-key|invalid-api-key|api-key-not-valid/.test(c) ? 'index.html의 firebaseConfig 값이 맞는지 확인해 주세요.'
+        : /network-request-failed/.test(c) ? '인터넷 연결이나 광고 차단 프로그램을 확인해 주세요.'
+        : /unauthorized-domain|requests-from-referer/.test(c) ? '승인된 도메인에 지금 사이트 주소(' + location.hostname + ')를 넣어 주세요.'
+        : 'Firebase 콘솔 설정을 확인해 주세요.';
+      setState('글쓰기를 켤 수 없어요. ' + why + ' (오류: ' + (c || '알 수 없음') + ')'); });
   } catch (e) { clearTimeout(timer); gotP = gotM = true; setState('보관함을 불러오지 못했어요. 새로고침해 주세요.'); render(); return; }
   const onErr = err => { clearTimeout(timer); gotP = gotM = true; console.warn(err);
     setState(err.code === 'permission-denied' ? '보관함을 읽을 권한이 없어요. Firestore 규칙을 확인해 주세요.' : '보관함 연결이 끊겼어요. 새로고침해 주세요.'); render(); };
