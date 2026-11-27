@@ -501,7 +501,8 @@ function tagView(t){
 
 /* 페르소나 편집 (Studio. Archive 캐릭터 창과 같은 모양) */
 const byId = id => items.find(p => p.id === id);
-function fullText(p){ return [`[${p.name || '이름 없음'}]`, tagsOf(p).length && tagsOf(p).map(t => '#' + t).join(' '), p.prompt && '\n' + p.prompt, ...partsOf(p).filter(x => x.text.trim()).map(x => '\n' + (x.name || '항목') + ': ' + x.text)].filter(Boolean).join('\n'); }
+/* 전체 복사: 이름 · #태그 · 항목 이름 없이 프롬프트와 항목 내용만 이어 붙인다 */
+function fullText(p){ return [p.prompt, ...partsOf(p).map(x => x.text)].map(t => String(t || '').trim()).filter(Boolean).map(t => /,$/.test(t) ? t : t + ',').join(' '); }
 function openEdit(p){
   cur = p || null; editImg = p ? safeImg(p.img) || null : null;
   const v = k => esc(p ? p[k] || '' : '');
