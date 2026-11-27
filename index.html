@@ -234,7 +234,11 @@ button.tag:hover{filter:brightness(.97)}
 .pp-add:hover{border-color:var(--pk-mid);color:var(--pk-strong)}
 textarea.auto{resize:none;overflow:hidden;min-height:86px}
 /* 순서 바꾸기 */
-.card2.reo{cursor:default;position:relative}
+.card2.reo{cursor:grab;position:relative;touch-action:none;user-select:none;-webkit-user-select:none}
+.card2.reo img,.card2 .pic{-webkit-user-drag:none}
+.card2.lifted{opacity:.3}
+.drag-ghost{position:fixed;z-index:200;pointer-events:none;margin:0;opacity:.95;transform:rotate(2deg) scale(1.03);box-shadow:0 18px 40px -12px rgba(42,37,32,.35);cursor:grabbing}
+body.dragging,body.dragging *{cursor:grabbing!important}
 .card2.reo:hover{transform:none;box-shadow:none;border-color:var(--line)}
 .mv{position:absolute;left:8px;right:8px;top:8px;display:flex;justify-content:space-between;padding:8px}
 .mv button{width:34px;height:34px;border-radius:50%;border:none;background:rgba(255,255,255,.95);color:var(--ink);font-size:16px;box-shadow:0 2px 8px rgba(42,37,32,.15)}
@@ -324,7 +328,7 @@ textarea.auto{resize:none;overflow:hidden;min-height:86px}
           <div class="chips" id="chips" aria-label="태그"></div>
           <select id="sort" class="field sel" aria-label="정렬"><option value="custom">직접 정한 순서</option><option value="new">최신순</option><option value="old">과거순</option><option value="az">이름 ▲</option></select>
         </div>
-        <div class="reo-bar" id="reo-bar" hidden><span>‹ › 를 눌러 순서를 바꿔요. 바꾼 순서는 모두에게 똑같이 보여요.</span><span class="grow"></span><button class="btn btn-sm btn-ink" id="reorder-done">완료</button></div>
+        <div class="reo-bar" id="reo-bar" hidden><span>카드를 끌어다 놓거나 ‹ › 를 눌러 순서를 바꿔요. 바꾼 순서는 모두에게 똑같이 보여요.</span><span class="grow"></span><button class="btn btn-sm btn-ink" id="reorder-done">완료</button></div>
         <div class="grid" id="grid"></div>
       </section>
     </main>
@@ -401,7 +405,7 @@ const closeSide = () => document.body.classList.remove('side-open');
 
 /* 그리기 */
 function pic(p){ const img = safeImg(p.img); return `<div class="pic" style="${img ? `background-image:url('${img}')` : ''}">${img ? '' : `<span class="ini">${esc(ini(p.name))}</span>`}</div>`; }
-function card(p){ const tg = tagsOf(p); return `<button class="card2" data-edit="${esc(p.id)}">${pic(p)}<div class="cap"><span class="nm">${esc(p.name) || '이름 없음'}</span>${p.summary ? `<span class="ds">${esc(p.summary)}</span>` : ''}<span class="tg">${tg.length ? tg.slice(0, 3).map(t => '#' + esc(t)).join(' ') : '&nbsp;'}</span></div></button>`; }
+function card(p){ const tg = tagsOf(p); return `<button class="card2" data-pid="${esc(p.id)}" data-edit="${esc(p.id)}">${pic(p)}<div class="cap"><span class="nm">${esc(p.name) || '이름 없음'}</span>${p.summary ? `<span class="ds">${esc(p.summary)}</span>` : ''}<span class="tg">${tg.length ? tg.slice(0, 3).map(t => '#' + esc(t)).join(' ') : '&nbsp;'}</span></div></button>`; }
 function thumb(p){ const img = safeImg(p.img); return `<span class="thumb" style="${img ? `background-image:url('${img}')` : ''}">${img ? '' : esc(ini(p.name))}</span>`; }
 function countBy(list, f){ const c = {}; list.forEach(p => [].concat(f(p)).forEach(k => c[k] = (c[k] || 0) + 1)); return c; }
 function menuList(){ /* 실제 메뉴 + (있으면) 미분류 */
@@ -481,13 +485,76 @@ function renderMenu(){
   curList = list;
 }
 let curList = [];
-function reoCard(p, i, n){ return `<div class="card2 reo">${pic(p)}<div class="mv"><button data-mv="${esc(p.id)}" data-d="-1" ${i === 0 ? 'disabled' : ''} aria-label="${esc(p.name)} 앞으로">‹</button><button data-mv="${esc(p.id)}" data-d="1" ${i === n - 1 ? 'disabled' : ''} aria-label="${esc(p.name)} 뒤로">›</button></div><div class="cap"><span class="nm">${i + 1}. ${esc(p.name) || '이름 없음'}</span>${p.summary ? `<span class="ds">${esc(p.summary)}</span>` : ''}<span class="tg">${tagsOf(p).length ? tagsOf(p).slice(0, 3).map(t => '#' + esc(t)).join(' ') : '&nbsp;'}</span></div></div>`; }
+function reoCard(p, i, n){ return `<div class="card2 reo" data-pid="${esc(p.id)}">${pic(p)}<div class="mv"><button data-mv="${esc(p.id)}" data-d="-1" ${i === 0 ? 'disabled' : ''} aria-label="${esc(p.name)} 앞으로">‹</button><button data-mv="${esc(p.id)}" data-d="1" ${i === n - 1 ? 'disabled' : ''} aria-label="${esc(p.name)} 뒤로">›</button></div><div class="cap"><span class="nm">${i + 1}. ${esc(p.name) || '이름 없음'}</span>${p.summary ? `<span class="ds">${esc(p.summary)}</span>` : ''}<span class="tg">${tagsOf(p).length ? tagsOf(p).slice(0, 3).map(t => '#' + esc(t)).join(' ') : '&nbsp;'}</span></div></div>`; }
 async function move(id, d){
   const i = curList.findIndex(p => p.id === id), j = i + d; if (i < 0 || j < 0 || j >= curList.length) return;
   if (needWrite()) return;
   const a = curList[i], b = curList[j]; let oa = ord(a), ob = ord(b); if (oa === ob) ob = oa + d;
   a.order = ob; b.order = oa; render();   /* 화면은 바로 바꾸고 */
   try { await db.patch(P_COLL, a.id, { order: ob }); await db.patch(P_COLL, b.id, { order: oa }); }
+  catch (e) { saveErr(e); }
+}
+
+/* 드래그로 순서 바꾸기
+   - '순서 바꾸기' 중에는 마우스·손가락 모두
+   - 평소에는 '직접 정한 순서'로 볼 때 마우스로만 (터치는 화면 스크롤과 겹쳐서) */
+let drag = null, justDragged = false;
+function canDrag(e){
+  if (view !== 'menu') return false;
+  if (reordering) return true;
+  return e.pointerType === 'mouse' && $('sort').value === 'custom';
+}
+$('grid').addEventListener('pointerdown', e => {
+  if (e.button !== 0 || !canDrag(e) || e.target.closest('[data-mv]')) return;
+  const el = e.target.closest('.card2[data-pid]'); if (!el) return;
+  drag = { el, id: el.dataset.pid, x: e.clientX, y: e.clientY, on: false, ghost: null, dx: 0, dy: 0 };
+});
+addEventListener('pointermove', e => {
+  if (!drag) return;
+  if (!drag.on) {
+    if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 6) return;
+    const r = drag.el.getBoundingClientRect();
+    drag.on = true; drag.dx = drag.x - r.left; drag.dy = drag.y - r.top;
+    const g = drag.el.cloneNode(true); g.classList.add('drag-ghost'); g.removeAttribute('data-pid'); g.style.width = r.width + 'px';
+    document.body.appendChild(g); drag.ghost = g; drag.el.classList.add('lifted'); document.body.classList.add('dragging');
+  }
+  e.preventDefault();
+  drag.ghost.style.left = (e.clientX - drag.dx) + 'px'; drag.ghost.style.top = (e.clientY - drag.dy) + 'px';
+  if (e.clientY < 70) scrollBy(0, -14); else if (e.clientY > innerHeight - 70) scrollBy(0, 14);
+  const over = document.elementFromPoint(e.clientX, e.clientY);
+  const target = over && over.closest('#grid .card2[data-pid]');
+  if (!target || target === drag.el) { drag.last = null; return; }
+  if (target === drag.last) return;   /* 방금 자리를 바꾼 카드 위에서는 다시 바꾸지 않기 (깜빡임 방지) */
+  drag.last = target;
+  const cards = [...$('grid').querySelectorAll('.card2[data-pid]')];
+  const before = cards.indexOf(drag.el) > cards.indexOf(target);
+  target.parentNode.insertBefore(drag.el, before ? target : target.nextSibling);
+}, { passive: false });
+function endDrag(){
+  if (!drag) return;
+  const d = drag; drag = null;
+  if (!d.on) return;
+  d.ghost.remove(); d.el.classList.remove('lifted'); document.body.classList.remove('dragging');
+  justDragged = true; setTimeout(() => justDragged = false, 0);
+  const ids = [...$('grid').querySelectorAll('.card2[data-pid]')].map(x => x.dataset.pid);
+  commitOrder(ids);
+}
+addEventListener('pointerup', endDrag);
+addEventListener('pointercancel', endDrag);
+/* 드래그 직후에 따라오는 클릭(편집 창 열기)은 무시 */
+document.addEventListener('click', e => { if (justDragged) { e.stopPropagation(); e.preventDefault(); } }, true);
+
+/* 화면에 놓인 순서대로 order 값을 다시 나눠 준다 (바뀐 카드만 저장) */
+async function commitOrder(ids){
+  const list = ids.map(byId).filter(Boolean);
+  const vals = list.map(ord).sort((a, b) => a - b);
+  for (let i = 1; i < vals.length; i++) if (vals[i] <= vals[i - 1]) vals[i] = vals[i - 1] + 1;
+  const changed = [];
+  list.forEach((p, i) => { if (ord(p) !== vals[i]) { p.order = vals[i]; changed.push(p); } });
+  render();
+  if (!changed.length) return;
+  if (needWrite()) return;
+  try { for (const p of changed) await db.patch(P_COLL, p.id, { order: p.order }); }
   catch (e) { saveErr(e); }
 }
 
