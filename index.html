@@ -360,7 +360,7 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp
 const IMG_OK = /^data:image\/(png|jpe?g|webp);base64,[A-Za-z0-9+/=]+$/;
 const safeImg = v => (typeof v === 'string' && v.length < 300000 && IMG_OK.test(v)) ? v : '';
 const ini = s => (String(s || '').trim()[0] || '?').toUpperCase();
-const TEXT = ['name', 'prompt'];
+const TEXT = ['name', 'summary', 'prompt'];   /* summary = 부제 */
 const DEFAULT_PARTS = ['외형', '의상', '장식'];
 /* 항목 목록 — 예전 글(외형·성격·배경 칸)도 그대로 읽는다 */
 function partsOf(p){
@@ -401,7 +401,7 @@ const closeSide = () => document.body.classList.remove('side-open');
 
 /* 그리기 */
 function pic(p){ const img = safeImg(p.img); return `<div class="pic" style="${img ? `background-image:url('${img}')` : ''}">${img ? '' : `<span class="ini">${esc(ini(p.name))}</span>`}</div>`; }
-function card(p){ const tg = tagsOf(p); return `<button class="card2" data-edit="${esc(p.id)}">${pic(p)}<div class="cap"><span class="nm">${esc(p.name) || '이름 없음'}</span><span class="tg">${tg.length ? tg.slice(0, 3).map(t => '#' + esc(t)).join(' ') : '&nbsp;'}</span></div></button>`; }
+function card(p){ const tg = tagsOf(p); return `<button class="card2" data-edit="${esc(p.id)}">${pic(p)}<div class="cap"><span class="nm">${esc(p.name) || '이름 없음'}</span>${p.summary ? `<span class="ds">${esc(p.summary)}</span>` : ''}<span class="tg">${tg.length ? tg.slice(0, 3).map(t => '#' + esc(t)).join(' ') : '&nbsp;'}</span></div></button>`; }
 function thumb(p){ const img = safeImg(p.img); return `<span class="thumb" style="${img ? `background-image:url('${img}')` : ''}">${img ? '' : esc(ini(p.name))}</span>`; }
 function countBy(list, f){ const c = {}; list.forEach(p => [].concat(f(p)).forEach(k => c[k] = (c[k] || 0) + 1)); return c; }
 function menuList(){ /* 실제 메뉴 + (있으면) 미분류 */
@@ -432,7 +432,7 @@ function render(){
 function renderHome(ml, tcAll){
   $('st-all').textContent = items.length; $('st-menu').textContent = menus.length; $('st-tag').textContent = Object.keys(tcAll).length;
   if (!loaded()) { $('w-recent').innerHTML = $('w-tags').innerHTML = '<div class="w-empty">불러오는 중…</div>'; $('w-pick-box').hidden = true; return; }
-  $('w-recent').innerHTML = items.length ? items.slice(0, 4).map(p => `<button data-edit="${esc(p.id)}">${thumb(p)}<span style="min-width:0"><span class="t">${esc(p.name) || '이름 없음'}</span><span class="s">${esc(menuName(menuOf(p)))}</span></span></button>`).join('')
+  $('w-recent').innerHTML = items.length ? items.slice(0, 4).map(p => `<button data-edit="${esc(p.id)}">${thumb(p)}<span style="min-width:0"><span class="t">${esc(p.name) || '이름 없음'}</span><span class="s">${esc(p.summary || menuName(menuOf(p)))}</span></span></button>`).join('')
     : `<div class="w-empty">아직 페르소나가 없어요.<button class="btn btn-sm" data-go="persona">페르소나로 가기</button></div>`;
   const top = Object.entries(tcAll).sort((a, b) => b[1] - a[1]).slice(0, 14);
   $('w-tags').innerHTML = top.length ? top.map(([t, n]) => `<button class="fchip" data-gotag="${esc(t)}">#${esc(t)}<span class="n">${n}</span></button>`).join('') : '<div class="w-empty">태그를 붙이면 여기에 모여요.</div>';
@@ -481,7 +481,7 @@ function renderMenu(){
   curList = list;
 }
 let curList = [];
-function reoCard(p, i, n){ return `<div class="card2 reo">${pic(p)}<div class="mv"><button data-mv="${esc(p.id)}" data-d="-1" ${i === 0 ? 'disabled' : ''} aria-label="${esc(p.name)} 앞으로">‹</button><button data-mv="${esc(p.id)}" data-d="1" ${i === n - 1 ? 'disabled' : ''} aria-label="${esc(p.name)} 뒤로">›</button></div><div class="cap"><span class="nm">${i + 1}. ${esc(p.name) || '이름 없음'}</span><span class="tg">${tagsOf(p).length ? tagsOf(p).slice(0, 3).map(t => '#' + esc(t)).join(' ') : '&nbsp;'}</span></div></div>`; }
+function reoCard(p, i, n){ return `<div class="card2 reo">${pic(p)}<div class="mv"><button data-mv="${esc(p.id)}" data-d="-1" ${i === 0 ? 'disabled' : ''} aria-label="${esc(p.name)} 앞으로">‹</button><button data-mv="${esc(p.id)}" data-d="1" ${i === n - 1 ? 'disabled' : ''} aria-label="${esc(p.name)} 뒤로">›</button></div><div class="cap"><span class="nm">${i + 1}. ${esc(p.name) || '이름 없음'}</span>${p.summary ? `<span class="ds">${esc(p.summary)}</span>` : ''}<span class="tg">${tagsOf(p).length ? tagsOf(p).slice(0, 3).map(t => '#' + esc(t)).join(' ') : '&nbsp;'}</span></div></div>`; }
 async function move(id, d){
   const i = curList.findIndex(p => p.id === id), j = i + d; if (i < 0 || j < 0 || j >= curList.length) return;
   if (needWrite()) return;
@@ -517,7 +517,8 @@ function openEdit(p){
     <label><span class="lbl">태그</span><input class="field soft" name="tags" value="${esc(p ? tagsOf(p).join(', ') : '')}" placeholder="쉼표로 구분" maxlength="300"></label>
     ${allTags.length ? `<div class="tags">${allTags.slice(0, 12).map(t => `<button type="button" class="tag" data-addtag="${esc(t)}">#${esc(t)}</button>`).join('')}</div>` : ''}
   </div><div class="sheet-main">
-    <div><label class="sr" for="f-name">이름</label><input class="title-in" id="f-name" name="name" value="${v('name')}" placeholder="페르소나 이름" maxlength="60"></div>
+    <div><label class="sr" for="f-name">이름</label><input class="title-in" id="f-name" name="name" value="${v('name')}" placeholder="페르소나 이름" maxlength="60">
+    <label class="sr" for="f-sum">부제</label><input class="sub-in" id="f-sum" name="summary" value="${v('summary')}" placeholder="부제" maxlength="80" style="margin-top:2px"></div>
     <div><div class="lbl-row"><label class="lbl" for="f-prompt" style="margin:0 0 0 2px">프롬프트</label><button type="button" class="btn btn-sm btn-soft" id="f-cp">복사</button></div>
     <textarea class="field soft auto" id="f-prompt" name="prompt" rows="4" placeholder="이 페르소나의 프롬프트 · 설정문" maxlength="20000">${v('prompt')}</textarea></div>
     <div class="pp-list" id="pp">${partsOf(p).map(partRow).join('')}</div>
@@ -547,7 +548,7 @@ async function save(form){
   d.menu = raw.menu === NONE ? '' : String(raw.menu || '');
   d.parts = readParts();
   if (!d.name && !d.prompt) { toast('이름이나 프롬프트를 적어 주세요.'); return; }
-  const keep = cur ? Object.fromEntries(['age', 'summary'].filter(k => cur[k]).map(k => [k, cur[k]])) : {};
+  const keep = cur ? Object.fromEntries(['age'].filter(k => cur[k]).map(k => [k, cur[k]])) : {};
   const now = Date.now(), body = { ...keep, ...d, img: editImg || '', ...(cur && typeof cur.order === 'number' ? { order: cur.order } : {}), uid: cur ? cur.uid || myUid : myUid, updatedAt: now, createdAt: cur ? cur.createdAt || now : now };
   const btn = $('f-save'); btn.disabled = true; btn.textContent = '저장 중…';
   try { await db.set(P_COLL, cur ? cur.id : null, body); closeModal(); toast('저장했어요. 모두에게 보여요.'); }
