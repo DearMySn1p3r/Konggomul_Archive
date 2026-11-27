@@ -245,6 +245,16 @@ body.dragging,body.dragging *{cursor:grabbing!important}
 .mv button:disabled{opacity:.35;cursor:default}
 .reo-bar{display:flex;align-items:center;gap:10px;background:var(--pk-soft);color:var(--pk-strong);border-radius:14px;padding:10px 12px 10px 16px;margin:-4px 0 16px;font-size:13px;font-weight:600}
 .reo-bar .grow{flex:1}
+
+/* 메뉴 이름 수정 버튼 */
+.pen{width:30px;height:30px;border-radius:50%;border:none;background:transparent;color:var(--faint);display:inline-flex;align-items:center;justify-content:center;padding:0;flex:none}
+.pen:hover{background:var(--pk-soft);color:var(--pk-strong)}
+.pen svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.mwrap{position:relative;min-width:0}
+.mwrap .pen{position:absolute;top:14px;right:14px;background:rgba(255,255,255,.95);box-shadow:0 1px 4px rgba(42,37,32,.12);opacity:0;transition:opacity .15s}
+.mwrap:hover .pen,.mwrap .pen:focus-visible{opacity:1}
+@media (hover:none){.mwrap .pen{opacity:1}}
+.title-row{display:flex;align-items:center;gap:4px}
 </style>
 </head>
 <body>
@@ -316,7 +326,7 @@ body.dragging,body.dragging *{cursor:grabbing!important}
       <section class="view" id="v-menu" hidden>
         <button class="back" data-go="persona">‹ 페르소나</button>
         <div class="page-head" style="margin-top:0">
-          <div><h1 class="h1" id="p-title"></h1><p class="sub" id="p-count"></p></div>
+          <div><div class="title-row"><h1 class="h1" id="p-title"></h1><button class="pen" id="rename-pen" aria-label="메뉴 이름 바꾸기" title="이름 바꾸기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg></button></div><p class="sub" id="p-count"></p></div>
           <div class="toolbar">
             <button class="btn" id="reorder">순서 바꾸기</button>
             <button class="btn" id="rename-menu">이름 바꾸기</button>
@@ -455,7 +465,7 @@ function renderMenus(ml){
   $('menu-grid').innerHTML = ml.map(m => {
     const ps = items.filter(p => menuOf(p) === m.id).slice(0, 3);
     const cells = ps.length ? `<div class="stack3">${[0, 1, 2].map(i => { const p = ps[i]; if (!p) return '<i></i>'; const img = safeImg(p.img); return `<i style="${img ? `background-image:url('${img}')` : ''}">${img ? '' : esc(ini(p.name))}</i>`; }).join('')}</div>` : '<div class="stack3 none">아직 비어 있어요</div>';
-    return `<button class="mcard" data-menu="${esc(m.id)}">${cells}<div class="cap"><span class="nm">${esc(m.name)}</span><span class="n">${m.n}명</span></div></button>`;
+    return `<div class="mwrap"><button class="mcard" data-menu="${esc(m.id)}">${cells}<div class="cap"><span class="nm">${esc(m.name)}</span><span class="n">${m.n}명</span></div></button>${m.id !== NONE ? `<button class="pen" data-rename="${esc(m.id)}" aria-label="${esc(m.name)} 이름 바꾸기" title="이름 바꾸기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg></button>` : ''}</div>`;
   }).join('') + add;
 }
 
@@ -464,7 +474,7 @@ function renderMenu(){
   $('p-title').textContent = menuName(menuId) || '…';
   const inMenu = items.filter(p => menuOf(p) === menuId);
   $('p-count').textContent = loaded() ? `${inMenu.length}명 · 모두가 함께 보는 페르소나` : '불러오는 중…';
-  $('rename-menu').hidden = !real;
+  $('rename-menu').hidden = !real; $('rename-pen').hidden = !real;
   $('del-menu').hidden = !(real && m && !inMenu.length && m.uid === myUid);
   const tc = countBy(inMenu, tagsOf);
   if (tag !== 'all' && !tc[tag] && loaded()) tag = 'all';
@@ -623,7 +633,7 @@ async function save(form){
 }
 
 /* 메뉴 만들기 · 이름 바꾸기 */
-function openMenuForm(m){ editingMenu = m || null; $('mm-t').textContent = m ? '메뉴 이름 바꾸기' : '새 메뉴'; $('mm-name').value = m ? m.name || '' : ''; $('mm').hidden = false; setTimeout(() => $('mm-name').focus(), 50); }
+function openMenuForm(m){ editingMenu = m || null; $('mm-t').textContent = m ? '메뉴 이름 바꾸기' : '새 메뉴'; $('mm-name').value = m ? m.name || '' : ''; $('mm').hidden = false; setTimeout(() => { $('mm-name').focus(); $('mm-name').select(); }, 50); }
 async function saveMenu(){
   const name = $('mm-name').value.trim().slice(0, 30); if (!name) { toast('메뉴 이름을 적어 주세요.'); return; }
   if (needWrite()) return;
@@ -659,7 +669,8 @@ document.addEventListener('click', async e => {
   if (t.dataset.addtag) { const f = $('f').elements.tags, list = parseTags(f.value); if (!list.includes(t.dataset.addtag)) f.value = list.concat(t.dataset.addtag).join(', '); return; }
   if (t.hasAttribute('data-close')) return closeModal();
   if (t.id === 'new-menu' || t.id === 'new-menu-2' || t.id === 'new-menu-side') { closeSide(); return openMenuForm(null); }
-  if (t.id === 'rename-menu') { const m = menus.find(x => x.id === menuId); return m && openMenuForm(m); }
+  if (t.id === 'rename-menu' || t.id === 'rename-pen') { const m = menus.find(x => x.id === menuId); return m && openMenuForm(m); }
+  if (t.dataset.rename) { const m = menus.find(x => x.id === t.dataset.rename); return m && openMenuForm(m); }
   if (t.id === 'mm-no') { $('mm').hidden = true; return; }
   if (t.id === 'del-menu') { const m = menus.find(x => x.id === menuId); if (!m || !(await ask('이 메뉴를 삭제할까요?'))) return;
     try { await db.del(P_COLL, m.id); reordering = false; go('persona'); toast('메뉴를 삭제했어요.'); } catch (err) { toast('삭제하지 못했어요.'); } return; }
